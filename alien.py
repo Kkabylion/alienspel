@@ -27,7 +27,7 @@ if not pg.image.get_extended():
 
 
 # game constants
-MAX_SHOTS = 2  # most player bullets onscreen
+MAX_SHOTS = 10  # most player bullets onscreen
 ALIEN_ODDS = 22  # chances a new alien appears
 ROCKS_ODDS = 40
 BOMB_ODDS = 60  # chances a new bomb will drop
@@ -67,7 +67,20 @@ def load_sound(file):
 #
 # The Player object actually gets a "move" function instead of update,
 # since it is passed extra information about the keyboard.
+class BackgroundKlass(pg.sprite.Sprite):
+    images = []
 
+    def __init__(self):
+        pg.sprite
+        pg.sprite.Sprite.__init__(self, self.containers)
+        self.image = self.images[0]
+        self.image = pg.transform.scale(self.image, (SCREENRECT.width, SCREENRECT.height*3))
+        self.rect = pg.Rect(0, 0, SCREENRECT.width, SCREENRECT.height*3)
+
+    def update(self):
+        self.rect.move_ip(0, 5)
+        if(self.rect.y > 0):
+            self.rect.y = -self.rect.height//2
 
 class Player(pg.sprite.Sprite):
     """Representing the player as a moon buggy type car."""
@@ -156,7 +169,24 @@ class Rocks(pg.sprite.Sprite):
         self.rect.move_ip(2, self.speed)
         if self.rect.bottom >= 600:
             self.kill()
+           
+class SuperDuperMonsterEnemy(pg.sprite.Sprite):
+    speed = 17
+    
+    def __init__(self):
+        pg.sprite.Sprite.__init__(self, self.containers)
+        self.image = pg.transform.scale(pg.image.load("data/superdupermonsterenemy.gif"), (75, 75))
+        self.rect = self.image.get_rect()
+        self.facing = random.choice((-1, 1)) * SuperDuperMonsterEnemy.speed
+        if self.facing < 0:
+            self.rect.right = SCREENRECT.right
 
+    def update(self):
+        self.rect.move_ip(self.facing, 0)
+        if not SCREENRECT.contains(self.rect):
+            self.facing = -self.facing
+            self.rect.top = self.rect.bottom + 1
+            self.rect = self.rect.clamp(SCREENRECT)
 
 class Alien(pg.sprite.Sprite):
     """An alien space ship. That slowly moves down the screen."""
@@ -182,6 +212,7 @@ class Alien(pg.sprite.Sprite):
             self.rect = self.rect.clamp(SCREENRECT)
         self.frame = self.frame + 1
         self.image = self.images[self.frame // self.animcycle % 3]
+
 
 
 class Explosion(pg.sprite.Sprite):
@@ -227,7 +258,6 @@ class Shot(pg.sprite.Sprite):
         self.rect.move_ip(0, self.speed)
         if self.rect.top <= 0:
             self.kill()
-
 
 class Bomb(pg.sprite.Sprite):
     """A bomb the aliens drop."""
@@ -298,8 +328,8 @@ def main(winstyle=0):
     DrDoom.images = [load_image(im) for im in ("newpicdoom.png", "newpicdoom.png", "newpicdoom.png")]
     Rocks.images = [load_image(im) for im in ("Rock1.gif", "Rock2.gif", "Rock3.gif")]
     Bomb.images = [load_image("bomb.gif")]
-    Shot.images = [load_image("shot.gif")]
-
+    Shot.images = [load_image("plasmabullet.gif")]
+    BackgroundKlass.images = [load_image("galaxyblue.png")]
     # decorate the game window
     icon = pg.transform.scale(Alien.images[0], (32, 32))
     pg.display.set_icon(icon)
@@ -307,7 +337,8 @@ def main(winstyle=0):
     pg.mouse.set_visible(0)
 
     # create the background, tile the bgd image
-    bgdtile = load_image("background.gif")
+    bgdtile = load_image("galaxyblue.png")
+    
     background = pg.Surface(SCREENRECT.size)
     for x in range(0, SCREENRECT.width, bgdtile.get_width()):
         background.blit(bgdtile, (x, 0))
@@ -323,24 +354,28 @@ def main(winstyle=0):
         pg.mixer.music.play(-1)
 
     # Initialize Game Groups
-    aliens = pg.sprite.Group()
+    aliens = pg.sprite.Group() 
     shots = pg.sprite.Group()
     bombs = pg.sprite.Group()
+    super_m_enemy = pg.sprite.Group()
     all = pg.sprite.RenderUpdates()
     lastalien = pg.sprite.GroupSingle()
     drdoom = pg.sprite.GroupSingle()
     lastalien2 = pg.sprite.GroupSingle()
+    
     
     # assign default groups to each sprite class
     Player.containers = all
     Alien.containers = aliens, all, lastalien
     DrDoom.containers = aliens, all, drdoom, lastalien
     Rocks.containers = all, lastalien2, aliens
+    SuperDuperMonsterEnemy.containers = super_m_enemy, all
     Shot.containers = shots, all
     Bomb.containers = bombs, all
     Explosion.containers = all
+    BackgroundKlass.containers = all
     Score.containers = all
-
+    
     # Create Some Starting Values
     global score
     alienreload = ALIEN_RELOAD
@@ -348,10 +383,13 @@ def main(winstyle=0):
 
     # initialize our starting sprites
     global SCORE
+    BackgroundKlass()
     player = Player()
     Alien()  # note, this 'lives' because it goes into a sprite group
     DrDoom()
     Rocks()
+    SuperDuperMonsterEnemy()
+    
     if pg.font:
         all.add(Score())
 
@@ -417,6 +455,23 @@ def main(winstyle=0):
         # Drop bombs
         if lastalien and not int(random.random() * BOMB_ODDS):
             Bomb(lastalien.sprite)
+            
+        # Collision duper and player
+        for duper in pg.sprite.spritecollide(player, super_m_enemy, 1):
+            if pg.mixer:
+                boom_sound.play()
+            Explosion(duper)
+            Explosion(player)
+            SCORE = SCORE + 1
+            player.kill()
+            
+        # Shooting duper
+        for duper in pg.sprite.groupcollide(super_m_enemy, shots, 1, 1).keys():
+            if pg.mixer:
+                boom_sound.play()
+            Explosion(duper)
+            SCORE = SCORE + 2
+            SuperDuperMonsterEnemy()
 
         # Detect collisions between aliens and players.
         for alien in pg.sprite.spritecollide(player, aliens, 1):
