@@ -1,9 +1,6 @@
 """ pygame.examples.aliens
-
 Shows a mini game where you have to defend against aliens.
-
 What does it show you about pygame?
-
 * pg.sprite, the difference between Sprite and Group.
 * dirty rectangle optimization for processing for speed.
 * music with pg.mixer.music, including fadeout
@@ -11,15 +8,11 @@ What does it show you about pygame?
 * event processing, keyboard handling, QUIT handling.
 * a main loop frame limited with a game clock from pg.time.Clock
 * fullscreen switching.
-
-
 Controls
 --------
-
 * Left and right arrows to move.
 * Space bar to shoot
 * f key to toggle between fullscreen.
-
 """
 
 import random
@@ -36,6 +29,7 @@ if not pg.image.get_extended():
 # game constants
 MAX_SHOTS = 2  # most player bullets onscreen
 ALIEN_ODDS = 22  # chances a new alien appears
+ROCKS_ODDS = 40
 BOMB_ODDS = 60  # chances a new bomb will drop
 ALIEN_RELOAD = 12  # frames between new aliens
 SCREENRECT = pg.Rect(0, 0, 640, 480)
@@ -106,6 +100,63 @@ class Player(pg.sprite.Sprite):
         pos = self.facing * self.gun_offset + self.rect.centerx
         return pos, self.rect.top
 
+class DrDoom(pg.sprite.Sprite):
+    speed = 1
+    animcycle = 12
+    images = []
+
+    def __init__(self):
+        pg.sprite.Sprite.__init__(self, self.containers)
+        self.image = self.images[0]
+        self.rect = self.image.get_rect()
+        self.facing = random.choice((-1, 1)) * DrDoom.speed
+        self.frame = 0
+        if self.facing < 0:
+            self.rect.right = SCREENRECT.right
+
+    def update(self):
+        self.rect.move_ip(self.facing, 0)
+        if not SCREENRECT.contains(self.rect):
+            self.facing = -self.facing
+            self.rect.top = self.rect.bottom + 1
+            self.rect = self.rect.clamp(SCREENRECT)
+        self.frame = self.frame + 1
+        self.image = self.images[self.frame // self.animcycle % 3]
+    
+class Rocks(pg.sprite.Sprite):
+    speed = 1
+    animcycle = 20
+    images = [3]
+
+    def __init__(self):
+        pg.sprite.Sprite.__init__(self, self.containers)
+        self.image = self.images[0]
+        self.rect = self.image.get_rect()
+        self.facing = random.choice((-1, 1)) * Rocks.speed
+        self.frame = 0
+        if self.facing < 0:
+            self.rect.topright = SCREENRECT.topleft
+
+    def update(self):
+        self.rect.move_ip(self.facing, 0)
+        if not SCREENRECT.contains(self.rect):
+            self.facing = -self.facing
+            self.rect.top = self.rect.top + 1
+            self.rect = self.rect.clamp(SCREENRECT)
+        self.frame = self.frame + 1
+        self.image = self.images[self.frame // self.animcycle % 0]
+    
+    def update(self):
+        """called every time around the game loop.
+        Every frame we move the sprite 'rect' down.
+        When it reaches the bottom we:
+        - make an explosion.
+        - remove the Bomb.
+        """
+        self.rect.move_ip(2, self.speed)
+        if self.rect.bottom >= 600:
+            self.kill()
+
 
 class Alien(pg.sprite.Sprite):
     """An alien space ship. That slowly moves down the screen."""
@@ -148,10 +199,8 @@ class Explosion(pg.sprite.Sprite):
 
     def update(self):
         """called every time around the game loop.
-
         Show the explosion surface for 'defaultlife'.
         Every game tick(update), we decrease the 'life'.
-
         Also we animate the explosion.
         """
         self.life = self.life - 1
@@ -173,7 +222,6 @@ class Shot(pg.sprite.Sprite):
 
     def update(self):
         """called every time around the game loop.
-
         Every tick we move the shot upwards.
         """
         self.rect.move_ip(0, self.speed)
@@ -194,10 +242,8 @@ class Bomb(pg.sprite.Sprite):
 
     def update(self):
         """called every time around the game loop.
-
         Every frame we move the sprite 'rect' down.
         When it reaches the bottom we:
-
         - make an explosion.
         - remove the Bomb.
         """
@@ -249,6 +295,8 @@ def main(winstyle=0):
     img = load_image("explosion1.gif")
     Explosion.images = [img, pg.transform.flip(img, 1, 1)]
     Alien.images = [load_image(im) for im in ("alien1.gif", "alien2.gif", "alien3.gif")]
+    DrDoom.images = [load_image(im) for im in ("newpicdoom.png", "newpicdoom.png", "newpicdoom.png")]
+    Rocks.images = [load_image(im) for im in ("Rock1.gif", "Rock2.gif", "Rock3.gif")]
     Bomb.images = [load_image("bomb.gif")]
     Shot.images = [load_image("shot.gif")]
 
@@ -280,10 +328,14 @@ def main(winstyle=0):
     bombs = pg.sprite.Group()
     all = pg.sprite.RenderUpdates()
     lastalien = pg.sprite.GroupSingle()
-
+    drdoom = pg.sprite.GroupSingle()
+    lastalien2 = pg.sprite.GroupSingle()
+    
     # assign default groups to each sprite class
     Player.containers = all
     Alien.containers = aliens, all, lastalien
+    DrDoom.containers = aliens, all, drdoom, lastalien
+    Rocks.containers = all, lastalien2, aliens
     Shot.containers = shots, all
     Bomb.containers = bombs, all
     Explosion.containers = all
@@ -298,6 +350,8 @@ def main(winstyle=0):
     global SCORE
     player = Player()
     Alien()  # note, this 'lives' because it goes into a sprite group
+    DrDoom()
+    Rocks()
     if pg.font:
         all.add(Score())
 
@@ -351,7 +405,13 @@ def main(winstyle=0):
         if alienreload:
             alienreload = alienreload - 1
         elif not int(random.random() * ALIEN_ODDS):
-            Alien()
+            Alien,DrDoom()
+            alienreload = ALIEN_RELOAD
+
+        if alienreload:
+            alienreload = alienreload - 1
+        elif not int(random.random() * ROCKS_ODDS):
+            Rocks()
             alienreload = ALIEN_RELOAD
 
         # Drop bombs
@@ -372,6 +432,12 @@ def main(winstyle=0):
             if pg.mixer:
                 boom_sound.play()
             Explosion(alien)
+            SCORE = SCORE + 1
+
+        for lastalien2 in pg.sprite.groupcollide(lastalien2, shots, 1, 1).keys():
+            if pg.mixer:
+                boom_sound.play()
+            Explosion(lastalien2)
             SCORE = SCORE + 1
 
         # See if alien boms hit the player.
