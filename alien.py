@@ -318,7 +318,7 @@ def main(winstyle=0):
     boom_sound = load_sound("boom.wav")
     shoot_sound = load_sound("car_door.wav")
     if pg.mixer:
-        music = os.path.join(main_dir, "data", "house_lo.wav")
+        music = os.path.join(main_dir, "data", "RickRoll.mp3")
         pg.mixer.music.load(music)
         pg.mixer.music.play(-1)
 
