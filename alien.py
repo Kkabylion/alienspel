@@ -78,7 +78,7 @@ class BackgroundKlass(pg.sprite.Sprite):
         self.rect = pg.Rect(0, 0, SCREENRECT.width, SCREENRECT.height*3)
 
     def update(self):
-        self.rect.move_ip(0, 5)
+        self.rect.move_ip(0, 3)
         if(self.rect.y > 0):
             self.rect.y = -self.rect.height//2
 
