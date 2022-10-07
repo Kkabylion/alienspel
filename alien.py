@@ -288,7 +288,7 @@ class Score(pg.sprite.Sprite):
 
     def __init__(self):
         pg.sprite.Sprite.__init__(self)
-        self.font = pg.font.Font(None, 20)
+        self.font = pg.font.Font(None, 35)
         self.font.set_italic(1)
         self.color = "white"
         self.lastscore = -1
